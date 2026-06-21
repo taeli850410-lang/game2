@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>TETRIS - 테트리스</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;background:#0a0a1a;color:#fff;font-family:'Courier New',monospace;overflow:hidden;user-select:none;}
+  #wrap{display:flex;align-items:center;justify-content:center;height:100%;gap:24px;}
+  #game{background:#080812;border:3px solid #3a3a7a;box-shadow:0 0 26px rgba(120,120,255,.3);}
+  #side{display:flex;flex-direction:column;gap:16px;font-size:15px;}
+  .box{border:2px solid #3a3a7a;padding:10px 14px;background:#0e0e22;}
+  .label{color:#9af;font-size:12px;letter-spacing:2px;margin-bottom:6px;}
+  .val{font-size:26px;color:#fe5;}
+  a.back{position:fixed;top:14px;left:14px;color:#9af;text-decoration:none;font-size:14px;border:1px solid #46a;padding:6px 12px;border-radius:4px;}
+  a.back:hover{background:#1a2a4a;}
+  #ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;}
+  .panel{pointer-events:auto;}
+  h1{font-size:46px;letter-spacing:8px;color:#9af;text-shadow:0 0 12px #46f;}
+  .btn{display:block;width:240px;margin:10px auto;padding:12px;font-family:inherit;font-size:18px;letter-spacing:3px;color:#fff;background:#15153a;border:2px solid #46c;cursor:pointer;}
+  .btn:hover{background:#25255a;transform:scale(1.05);}
+  .btn small{display:block;font-size:11px;color:#9ad;margin-top:3px;}
+  .hint{margin-top:22px;font-size:13px;color:#789;line-height:1.8;}
+  .blink{animation:bl 1s steps(2) infinite;}@keyframes bl{to{visibility:hidden;}}
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← 메뉴</a>
+<div id="wrap">
+  <canvas id="game" width="300" height="600"></canvas>
+  <div id="side">
+    <div class="box"><div class="label">SCORE</div><div class="val" id="score">0</div></div>
+    <div class="box"><div class="label">LINES</div><div class="val" id="lines">0</div></div>
+    <div class="box"><div class="label">LEVEL</div><div class="val" id="level">1</div></div>
+    <div class="box"><div class="label">NEXT</div><canvas id="next" width="100" height="100" style="display:block;margin-top:4px;"></canvas></div>
+  </div>
+</div>
+<div id="ov"><div class="panel" id="panel"></div></div>
+<script>
+const cv=document.getElementById('game'),ctx=cv.getContext('2d');
+const nx=document.getElementById('next'),nctx=nx.getContext('2d');
+const COLS=10,ROWS=20,SZ=30;
+const ov=document.getElementById('ov'),panel=document.getElementById('panel');
+const elScore=document.getElementById('score'),elLines=document.getElementById('lines'),elLevel=document.getElementById('level');
+
+const SHAPES={
+  I:{c:'#3ff',m:[[1,1,1,1]]},
+  O:{c:'#fe5',m:[[1,1],[1,1]]},
+  T:{c:'#c5f',m:[[0,1,0],[1,1,1]]},
+  S:{c:'#5f8',m:[[0,1,1],[1,1,0]]},
+  Z:{c:'#f66',m:[[1,1,0],[0,1,1]]},
+  J:{c:'#59f',m:[[1,0,0],[1,1,1]]},
+  L:{c:'#fa4',m:[[0,0,1],[1,1,1]]},
+};
+const KEYS=Object.keys(SHAPES);
+let grid,cur,nextP,score,lines,level,dropTimer,fallSpeed,running=false,acc=0,last=0;
+
+function newGrid(){return Array.from({length:ROWS},()=>Array(COLS).fill(null));}
+function spawn(){
+  cur=nextP||randPiece();
+  nextP=randPiece();
+  cur.x=(COLS/2|0)-(cur.m[0].length/2|0);cur.y=0;
+  if(collide(cur.m,cur.x,cur.y))return gameOver();
+  drawNext();
+}
+function randPiece(){const k=KEYS[(Math.random()*KEYS.length)|0];return{m:SHAPES[k].m.map(r=>r.slice()),c:SHAPES[k].c,x:0,y:0};}
+function rotate(m){return m[0].map((_,i)=>m.map(r=>r[i]).reverse());}
+function collide(m,px,py){
+  for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+    if(m[y][x]){const gx=px+x,gy=py+y;
+      if(gx<0||gx>=COLS||gy>=ROWS)return true;
+      if(gy>=0&&grid[gy][gx])return true;}
+  }return false;
+}
+function merge(){
+  cur.m.forEach((row,y)=>row.forEach((v,x)=>{if(v&&cur.y+y>=0)grid[cur.y+y][cur.x+x]=cur.c;}));
+}
+function clearLines(){
+  let cleared=0;
+  for(let y=ROWS-1;y>=0;y--){
+    if(grid[y].every(c=>c)){grid.splice(y,1);grid.unshift(Array(COLS).fill(null));cleared++;y++;}
+  }
+  if(cleared){
+    const pts=[0,100,300,500,800][cleared]*level;
+    score+=pts;lines+=cleared;
+    level=1+((lines/10)|0);
+    fallSpeed=Math.max(80, 800 - (level-1)*70);
+    elScore.textContent=score;elLines.textContent=lines;elLevel.textContent=level;
+    beep(cleared>=4?660:440,0.12);
+  }
+}
+function drop(){
+  if(!collide(cur.m,cur.x,cur.y+1)){cur.y++;}
+  else{merge();clearLines();spawn();}
+}
+function hardDrop(){
+  while(!collide(cur.m,cur.x,cur.y+1)){cur.y++;score+=2;}
+  merge();clearLines();spawn();elScore.textContent=score;
+  beep(300,0.05);
+}
+function move(dx){if(!collide(cur.m,cur.x+dx,cur.y))cur.x+=dx;}
+function tryRotate(){
+  const r=rotate(cur.m);
+  for(const off of [0,-1,1,-2,2]){
+    if(!collide(r,cur.x+off,cur.y)){cur.m=r;cur.x+=off;return;}
+  }
+}
+function loop(t){
+  if(!running)return;
+  const dt=t-last;last=t;acc+=dt;
+  if(acc>fallSpeed){drop();acc=0;}
+  draw();
+  requestAnimationFrame(loop);
+}
+function draw(){
+  ctx.fillStyle='#080812';ctx.fillRect(0,0,cv.width,cv.height);
+  // 격자선
+  ctx.strokeStyle='rgba(80,80,160,.1)';
+  for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*SZ,0);ctx.lineTo(x*SZ,cv.height);ctx.stroke();}
+  for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*SZ);ctx.lineTo(cv.width,y*SZ);ctx.stroke();}
+  // 쌓인 블록
+  grid.forEach((row,y)=>row.forEach((c,x)=>{if(c)cell(ctx,x,y,c);}));
+  // 고스트(낙하 예상 위치)
+  let gy=cur.y;while(!collide(cur.m,cur.x,gy+1))gy++;
+  cur.m.forEach((row,y)=>row.forEach((v,x)=>{if(v){ctx.globalAlpha=.18;cell(ctx,cur.x+x,gy+y,cur.c);ctx.globalAlpha=1;}}));
+  // 현재 조각
+  cur.m.forEach((row,y)=>row.forEach((v,x)=>{if(v&&cur.y+y>=0)cell(ctx,cur.x+x,cur.y+y,cur.c);}));
+}
+function cell(c,x,y,col){
+  c.fillStyle=col;c.fillRect(x*SZ+1,y*SZ+1,SZ-2,SZ-2);
+  c.fillStyle='rgba(255,255,255,.25)';c.fillRect(x*SZ+1,y*SZ+1,SZ-2,4);
+}
+function drawNext(){
+  nctx.clearRect(0,0,nx.width,nx.height);
+  const m=nextP.m,s=20;
+  const ox=(nx.width-m[0].length*s)/2, oy=(nx.height-m.length*s)/2;
+  m.forEach((row,y)=>row.forEach((v,x)=>{if(v){nctx.fillStyle=nextP.c;nctx.fillRect(ox+x*s+1,oy+y*s+1,s-2,s-2);nctx.fillStyle='rgba(255,255,255,.25)';nctx.fillRect(ox+x*s+1,oy+y*s+1,s-2,3);}}));
+}
+function gameOver(){
+  running=false;
+  beep(120,0.4,'sawtooth');
+  ov.style.display='flex';
+  panel.innerHTML=`<h1 style="color:#f66;text-shadow:0 0 12px #f00;">GAME OVER</h1>
+    <div style="font-size:22px;margin:18px;">SCORE <span style="color:#fe5;">${score}</span> · ${lines} LINES</div>
+    <button class="btn" onclick="location.reload()">다시 (RETRY)</button>
+    <div class="hint blink">또는 ← 메뉴로</div>`;
+}
+let actx;function beep(f,d,t='square',v=0.06){try{if(!actx)actx=new(window.AudioContext||webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type=t;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(actx.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+d);o.stop(actx.currentTime+d);}catch(e){}}
+
+addEventListener('keydown',e=>{
+  if(!running)return;
+  const k=e.code;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(k))e.preventDefault();
+  if(k==='ArrowLeft')move(-1);
+  else if(k==='ArrowRight')move(1);
+  else if(k==='ArrowDown'){drop();acc=0;}
+  else if(k==='ArrowUp')tryRotate();
+  else if(k==='Space')hardDrop();
+  draw();
+});
+function start(sp){
+  grid=newGrid();score=0;lines=0;level=1;fallSpeed=sp;acc=0;
+  elScore.textContent=0;elLines.textContent=0;elLevel.textContent=1;
+  nextP=randPiece();spawn();
+  ov.style.display='none';running=true;last=performance.now();
+  requestAnimationFrame(loop);
+}
+function menu(){
+  ov.style.display='flex';
+  panel.innerHTML=`<h1>TETRIS</h1>
+    <div style="color:#9ad;letter-spacing:3px;margin:14px 0;">난이도 선택</div>
+    <button class="btn" onclick="start(800)">하 EASY<small>느린 낙하</small></button>
+    <button class="btn" onclick="start(550)">중 NORMAL<small>표준 낙하</small></button>
+    <button class="btn" onclick="start(320)">상 HARD<small>빠른 낙하</small></button>
+    <div class="hint">← → : 이동 &nbsp; ↑ : 회전<br>↓ : 소프트드롭 &nbsp; SPACE : 하드드롭</div>`;
+}
+menu();
+</script>
+</body>
+</html>

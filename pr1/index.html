@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RETRO ARCADE - 게임 센터</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{min-height:100%;background:#06061a;color:#fff;font-family:'Courier New',monospace;}
+  body{
+    background:
+      radial-gradient(circle at 20% 20%, rgba(80,40,160,.25), transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(40,120,160,.22), transparent 45%),
+      #06061a;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:50px 20px;
+    overflow-x:hidden;
+  }
+  #stars{position:fixed;inset:0;z-index:0;}
+  .content{position:relative;z-index:1;width:100%;max-width:920px;}
+  h1{
+    text-align:center;font-size:62px;letter-spacing:12px;
+    color:#ffe14d;text-shadow:0 0 18px #ff8c00, 5px 5px 0 #b00;margin-bottom:6px;
+  }
+  .tag{text-align:center;color:#7cf;letter-spacing:6px;font-size:15px;margin-bottom:44px;}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+  .card{
+    position:relative;background:#10103080;border:2px solid #333;border-radius:12px;
+    padding:26px 18px;text-decoration:none;color:#fff;text-align:center;
+    transition:all .16s;overflow:hidden;cursor:pointer;backdrop-filter:blur(2px);
+  }
+  .card:hover{transform:translateY(-6px) scale(1.03);box-shadow:0 8px 30px var(--glow);border-color:var(--c);}
+  .icon{font-size:54px;margin-bottom:12px;display:block;}
+  .title{font-size:24px;letter-spacing:3px;font-weight:bold;color:var(--c);text-shadow:0 0 10px var(--glow);}
+  .desc{font-size:12px;color:#9ab;margin-top:8px;line-height:1.5;}
+  .badge{position:absolute;top:10px;right:10px;font-size:10px;background:var(--c);color:#000;padding:2px 7px;border-radius:10px;font-weight:bold;}
+  footer{text-align:center;margin-top:48px;color:#556;font-size:12px;letter-spacing:2px;line-height:1.8;}
+  @media(max-width:640px){.grid{grid-template-columns:repeat(2,1fr);}h1{font-size:40px;letter-spacing:6px;}}
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="content">
+  <h1>RETRO ARCADE</h1>
+  <div class="tag">★ 6 GAMES · CLASSIC COLLECTION ★</div>
+  <div class="grid">
+    <a class="card" href="galaxy.html"   style="--c:#ffe14d;--glow:rgba(255,225,77,.5)"><span class="badge">SHOOTER</span><span class="icon">🚀</span><div class="title">GALAXY</div><div class="desc">갤러그식 우주 슈팅<br>편대·급강하 공격</div></a>
+    <a class="card" href="snake.html"    style="--c:#5f8;--glow:rgba(85,255,136,.5)"><span class="badge">CLASSIC</span><span class="icon">🐍</span><div class="title">SNAKE</div><div class="desc">먹이 먹고 성장<br>점점 빨라지는 뱀</div></a>
+    <a class="card" href="tetris.html"   style="--c:#9af;--glow:rgba(120,160,255,.5)"><span class="badge">PUZZLE</span><span class="icon">🧱</span><div class="title">TETRIS</div><div class="desc">블록 쌓기 퍼즐<br>고스트·하드드롭</div></a>
+    <a class="card" href="breakout.html" style="--c:#c9f;--glow:rgba(200,150,255,.5)"><span class="badge">ARCADE</span><span class="icon">🧱</span><div class="title">BREAKOUT</div><div class="desc">벽돌깨기<br>패들 각도 반사</div></a>
+    <a class="card" href="pong.html"     style="--c:#6ff;--glow:rgba(100,255,255,.5)"><span class="badge">VERSUS</span><span class="icon">🏓</span><div class="title">PONG</div><div class="desc">CPU와 탁구 대결<br>7점 선승</div></a>
+    <a class="card" href="2048.html"     style="--c:#fe5;--glow:rgba(255,225,80,.5)"><span class="badge">PUZZLE</span><span class="icon">🔢</span><div class="title">2048</div><div class="desc">숫자 합치기<br>2048을 만들자</div></a>
+  </div>
+  <footer>
+    각 게임마다 난이도(상·중·하) 선택 가능<br>
+    화살표 키 · 스페이스바 · 마우스로 플레이 — 카드를 클릭해 시작하세요
+  </footer>
+</div>
+<script>
+// 움직이는 별 배경
+const c=document.getElementById('stars'),x=c.getContext('2d');
+let stars=[];
+function resize(){c.width=innerWidth;c.height=innerHeight;}
+addEventListener('resize',resize);resize();
+for(let i=0;i<120;i++)stars.push({x:Math.random()*c.width,y:Math.random()*c.height,s:Math.random()*2+.3,v:Math.random()*.4+.1});
+function loop(){
+  x.clearRect(0,0,c.width,c.height);
+  for(const st of stars){
+    st.y+=st.v;if(st.y>c.height){st.y=0;st.x=Math.random()*c.width;}
+    x.fillStyle=st.s>1.4?'rgba(180,200,255,.9)':'rgba(120,120,180,.6)';
+    x.fillRect(st.x,st.y,st.s,st.s);
+  }
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

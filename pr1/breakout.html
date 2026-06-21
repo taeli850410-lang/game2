@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>BREAKOUT - 벽돌깨기</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;background:#0a0a1a;color:#fff;font-family:'Courier New',monospace;overflow:hidden;user-select:none;}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;}
+  #top{width:480px;display:flex;justify-content:space-between;margin-bottom:8px;font-size:16px;}
+  #game{background:#05050f;border:3px solid #5a3a7a;box-shadow:0 0 26px rgba(200,100,255,.3);}
+  a.back{position:fixed;top:14px;left:14px;color:#c9f;text-decoration:none;font-size:14px;border:1px solid #a6c;padding:6px 12px;border-radius:4px;}
+  a.back:hover{background:#2a1a3a;}
+  #ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;}
+  .panel{pointer-events:auto;}
+  h1{font-size:42px;letter-spacing:7px;color:#c9f;text-shadow:0 0 12px #a4f;}
+  .btn{display:block;width:240px;margin:10px auto;padding:12px;font-family:inherit;font-size:18px;letter-spacing:3px;color:#fff;background:#2a153a;border:2px solid #a4c;cursor:pointer;}
+  .btn:hover{background:#3a255a;transform:scale(1.05);}
+  .btn small{display:block;font-size:11px;color:#d9f;margin-top:3px;}
+  .hint{margin-top:22px;font-size:13px;color:#a89;line-height:1.8;}
+  .blink{animation:bl 1s steps(2) infinite;}@keyframes bl{to{visibility:hidden;}}
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← 메뉴</a>
+<div id="wrap">
+  <div id="top"><span id="score">SCORE 0</span><span id="lives" style="color:#c9f;">●●●</span></div>
+  <canvas id="game" width="480" height="560"></canvas>
+</div>
+<div id="ov"><div class="panel" id="panel"></div></div>
+<script>
+const cv=document.getElementById('game'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const ov=document.getElementById('ov'),panel=document.getElementById('panel');
+const elScore=document.getElementById('score'),elLives=document.getElementById('lives');
+let paddle,ball,bricks,score,lives,running=false,launched,cfg;
+const COLORS=['#f66','#fa4','#fe5','#5f8','#5cf'];
+
+function makeBricks(){
+  bricks=[];
+  const cols=10,rows=5,bw=42,bh=20,gap=4,top=60,left=(W-(cols*(bw+gap)-gap))/2;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    bricks.push({x:left+c*(bw+gap),y:top+r*(bh+gap),w:bw,h:bh,c:COLORS[r],hp:1,pts:(rows-r)*10});
+  }
+}
+function resetBall(){
+  launched=false;
+  ball={x:paddle.x, y:H-50, r:7, vx:0, vy:0};
+}
+function launch(){
+  if(!launched){launched=true;const a=(-Math.PI/2)+(Math.random()*0.6-0.3);ball.vx=Math.cos(a)*cfg.bspeed;ball.vy=Math.sin(a)*cfg.bspeed;}
+}
+function start(c){
+  cfg=c;score=0;lives=3;
+  paddle={x:W/2,y:H-28,w:cfg.pw,h:12,speed:8};
+  makeBricks();resetBall();
+  elScore.textContent='SCORE 0';updateLives();
+  ov.style.display='none';running=true;loop();
+}
+function updateLives(){elLives.textContent='●'.repeat(lives)||'';}
+const keys={};
+addEventListener('keydown',e=>{keys[e.code]=true;if(['ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();if(e.code==='Space')launch();});
+addEventListener('keyup',e=>{keys[e.code]=false;});
+cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect();paddle&&(paddle.x=Math.max(paddle.w/2,Math.min(W-paddle.w/2,e.clientX-r.left)));});
+cv.addEventListener('click',launch);
+
+function loop(){
+  if(!running)return;
+  // 패들
+  if(keys.ArrowLeft)paddle.x-=paddle.speed;
+  if(keys.ArrowRight)paddle.x+=paddle.speed;
+  paddle.x=Math.max(paddle.w/2,Math.min(W-paddle.w/2,paddle.x));
+  if(!launched){ball.x=paddle.x;}
+  else{
+    ball.x+=ball.vx;ball.y+=ball.vy;
+    // 벽
+    if(ball.x<ball.r){ball.x=ball.r;ball.vx*=-1;beep(440,0.03);}
+    if(ball.x>W-ball.r){ball.x=W-ball.r;ball.vx*=-1;beep(440,0.03);}
+    if(ball.y<ball.r){ball.y=ball.r;ball.vy*=-1;beep(440,0.03);}
+    // 바닥 → 목숨 감소
+    if(ball.y>H+20){
+      lives--;updateLives();beep(120,0.3,'sawtooth');
+      if(lives<=0)return gameOver();
+      resetBall();
+    }
+    // 패들 충돌
+    if(ball.vy>0 && ball.y+ball.r>=paddle.y && ball.y<paddle.y+paddle.h && Math.abs(ball.x-paddle.x)<paddle.w/2+ball.r){
+      const hit=(ball.x-paddle.x)/(paddle.w/2); // -1..1
+      const ang=hit*(Math.PI/3); // 최대 60도
+      const sp=Math.hypot(ball.vx,ball.vy);
+      ball.vx=Math.sin(ang)*sp;ball.vy=-Math.abs(Math.cos(ang)*sp);
+      ball.y=paddle.y-ball.r;beep(660,0.04);
+    }
+    // 벽돌 충돌
+    for(const b of bricks){
+      if(b.hp>0 && ball.x>b.x-ball.r && ball.x<b.x+b.w+ball.r && ball.y>b.y-ball.r && ball.y<b.y+b.h+ball.r){
+        b.hp--;score+=b.pts;elScore.textContent='SCORE '+score;
+        // 반사 방향 판정
+        const ox=Math.min(Math.abs(ball.x-b.x),Math.abs(ball.x-(b.x+b.w)));
+        const oy=Math.min(Math.abs(ball.y-b.y),Math.abs(ball.y-(b.y+b.h)));
+        if(ox<oy)ball.vx*=-1;else ball.vy*=-1;
+        beep(520+b.pts,0.04);
+        break;
+      }
+    }
+    // 클리어
+    if(bricks.every(b=>b.hp<=0)){
+      score+=1000;elScore.textContent='SCORE '+score;
+      makeBricks();resetBall();
+      ball && (cfg.bspeed*=1.1);
+    }
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+function draw(){
+  ctx.fillStyle='#05050f';ctx.fillRect(0,0,W,H);
+  // 벽돌
+  for(const b of bricks){if(b.hp>0){ctx.fillStyle=b.c;ctx.fillRect(b.x,b.y,b.w,b.h);ctx.fillStyle='rgba(255,255,255,.25)';ctx.fillRect(b.x,b.y,b.w,4);}}
+  // 패들
+  ctx.fillStyle='#c9f';ctx.fillRect(paddle.x-paddle.w/2,paddle.y,paddle.w,paddle.h);
+  ctx.fillStyle='rgba(255,255,255,.4)';ctx.fillRect(paddle.x-paddle.w/2,paddle.y,paddle.w,3);
+  // 공
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,6.28);ctx.fill();
+  ctx.shadowColor='#fff';ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
+  if(!launched){ctx.fillStyle='#9af';ctx.font='14px Courier New';ctx.textAlign='center';ctx.fillText('SPACE 또는 클릭으로 발사',W/2,H-70);}
+}
+function gameOver(){
+  running=false;beep(100,0.5,'sawtooth');
+  ov.style.display='flex';
+  panel.innerHTML=`<h1 style="color:#f66;text-shadow:0 0 12px #f00;">GAME OVER</h1>
+    <div style="font-size:22px;margin:18px;">SCORE <span style="color:#c9f;">${score}</span></div>
+    <button class="btn" onclick="location.reload()">다시 (RETRY)</button>
+    <div class="hint blink">또는 ← 메뉴로</div>`;
+}
+let actx;function beep(f,d,t='square',v=0.05){try{if(!actx)actx=new(window.AudioContext||webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type=t;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(actx.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+d);o.stop(actx.currentTime+d);}catch(e){}}
+function menu(){
+  ov.style.display='flex';
+  panel.innerHTML=`<h1>BREAKOUT</h1>
+    <div style="color:#d9f;letter-spacing:3px;margin:14px 0;">난이도 선택</div>
+    <button class="btn" onclick="start({bspeed:4.5,pw:110})">하 EASY<small>느린 공 · 넓은 패들</small></button>
+    <button class="btn" onclick="start({bspeed:6,pw:85})">중 NORMAL<small>표준</small></button>
+    <button class="btn" onclick="start({bspeed:8,pw:60})">상 HARD<small>빠른 공 · 좁은 패들</small></button>
+    <div class="hint">← → 또는 마우스 : 패들 이동<br>SPACE/클릭 : 공 발사</div>`;
+}
+menu();
+</script>
+</body>
+</html>

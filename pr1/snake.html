@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>SNAKE - 스네이크</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;background:#0a0a1a;color:#fff;font-family:'Courier New',monospace;overflow:hidden;user-select:none;}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;}
+  #top{width:480px;display:flex;justify-content:space-between;margin-bottom:8px;font-size:16px;}
+  #game{background:#06121a;border:3px solid #1a5a3a;box-shadow:0 0 26px rgba(0,255,120,.3);}
+  a.back{position:fixed;top:14px;left:14px;color:#6f9;text-decoration:none;font-size:14px;border:1px solid #3a6;padding:6px 12px;border-radius:4px;}
+  a.back:hover{background:#1a3a2a;}
+  #ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;}
+  .panel{pointer-events:auto;}
+  h1{font-size:46px;letter-spacing:8px;color:#5f8;text-shadow:0 0 12px #0f6;}
+  .btn{display:block;width:240px;margin:10px auto;padding:12px;font-family:inherit;font-size:18px;letter-spacing:3px;color:#fff;background:#0a2a1a;border:2px solid #3c6;cursor:pointer;}
+  .btn:hover{background:#1a4a2a;transform:scale(1.05);}
+  .btn small{display:block;font-size:11px;color:#7d9;margin-top:3px;}
+  .hint{margin-top:22px;font-size:13px;color:#789;line-height:1.8;}
+  .blink{animation:bl 1s steps(2) infinite;}@keyframes bl{to{visibility:hidden;}}
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← 메뉴</a>
+<div id="wrap">
+  <div id="top"><span id="score">SCORE 0</span><span id="hi" style="color:#fe5;">HI 0</span></div>
+  <canvas id="game" width="480" height="480"></canvas>
+</div>
+<div id="ov"><div class="panel" id="panel"></div></div>
+<script>
+const cv=document.getElementById('game'),ctx=cv.getContext('2d');
+const G=24, CELL=cv.width/G;
+const ov=document.getElementById('ov'),panel=document.getElementById('panel');
+const scoreEl=document.getElementById('score'),hiEl=document.getElementById('hi');
+let snake,dir,nextDir,food,score,hi=0,speed,timer,running=false,grow;
+let baseSpeed=110;
+
+function reset(){
+  snake=[{x:12,y:12},{x:11,y:12},{x:10,y:12}];
+  dir={x:1,y:0};nextDir={x:1,y:0};
+  score=0;grow=0;
+  placeFood();
+  scoreEl.textContent='SCORE 0';
+}
+function placeFood(){
+  while(true){
+    food={x:(Math.random()*G)|0,y:(Math.random()*G)|0};
+    if(!snake.some(s=>s.x===food.x&&s.y===food.y))break;
+  }
+}
+function start(sp){
+  baseSpeed=sp;reset();ov.style.display='none';running=true;
+  speed=baseSpeed;loopStep();
+}
+function loopStep(){
+  if(!running)return;
+  step();
+  draw();
+  timer=setTimeout(loopStep, speed);
+}
+function step(){
+  dir=nextDir;
+  const head={x:snake[0].x+dir.x, y:snake[0].y+dir.y};
+  // 벽 충돌
+  if(head.x<0||head.x>=G||head.y<0||head.y>=G){return die();}
+  // 자기 몸 충돌
+  if(snake.some(s=>s.x===head.x&&s.y===head.y)){return die();}
+  snake.unshift(head);
+  if(head.x===food.x&&head.y===food.y){
+    score+=10;scoreEl.textContent='SCORE '+score;
+    placeFood();
+    speed=Math.max(45, baseSpeed - ((score/10)|0)*2); // 점점 빨라짐
+    beep(880,0.05);
+  } else {
+    snake.pop();
+  }
+}
+function die(){
+  running=false;clearTimeout(timer);
+  if(score>hi){hi=score;hiEl.textContent='HI '+hi;}
+  beep(120,0.3,'sawtooth');
+  ov.style.display='flex';
+  panel.innerHTML=`<h1 style="color:#f66;text-shadow:0 0 12px #f00;">GAME OVER</h1>
+    <div style="font-size:22px;margin:18px;">SCORE <span style="color:#5f8;">${score}</span></div>
+    <button class="btn" onclick="location.reload()">다시 (RETRY)</button>
+    <div class="hint blink">또는 ← 메뉴로</div>`;
+}
+function draw(){
+  ctx.fillStyle='#06121a';ctx.fillRect(0,0,cv.width,cv.height);
+  // 격자
+  ctx.strokeStyle='rgba(40,120,80,.12)';
+  for(let i=0;i<=G;i++){ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,cv.height);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(cv.width,i*CELL);ctx.stroke();}
+  // 먹이
+  ctx.fillStyle='#f55';
+  ctx.beginPath();ctx.arc(food.x*CELL+CELL/2, food.y*CELL+CELL/2, CELL/2-2, 0, 6.28);ctx.fill();
+  // 뱀
+  snake.forEach((s,i)=>{
+    ctx.fillStyle = i===0 ? '#9f6' : `hsl(140,70%,${50-Math.min(i,20)}%)`;
+    ctx.fillRect(s.x*CELL+1, s.y*CELL+1, CELL-2, CELL-2);
+    if(i===0){ // 눈
+      ctx.fillStyle='#000';
+      ctx.fillRect(s.x*CELL+6, s.y*CELL+5,3,3);
+      ctx.fillRect(s.x*CELL+CELL-9, s.y*CELL+5,3,3);
+    }
+  });
+}
+let actx;function beep(f,d,t='square',v=0.06){try{if(!actx)actx=new(window.AudioContext||webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type=t;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(actx.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+d);o.stop(actx.currentTime+d);}catch(e){}}
+
+addEventListener('keydown',e=>{
+  const k=e.code;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k))e.preventDefault();
+  if(k==='ArrowUp'&&dir.y===0)nextDir={x:0,y:-1};
+  else if(k==='ArrowDown'&&dir.y===0)nextDir={x:0,y:1};
+  else if(k==='ArrowLeft'&&dir.x===0)nextDir={x:-1,y:0};
+  else if(k==='ArrowRight'&&dir.x===0)nextDir={x:1,y:0};
+});
+function menu(){
+  ov.style.display='flex';
+  panel.innerHTML=`<h1>SNAKE</h1>
+    <div style="color:#7d9;letter-spacing:3px;margin:14px 0;">난이도 선택</div>
+    <button class="btn" onclick="start(150)">하 EASY<small>느린 속도</small></button>
+    <button class="btn" onclick="start(110)">중 NORMAL<small>표준 속도</small></button>
+    <button class="btn" onclick="start(70)">상 HARD<small>빠른 속도</small></button>
+    <div class="hint">← → ↑ ↓ : 방향 전환<br>먹이를 먹고 길어지세요. 점점 빨라집니다!</div>`;
+}
+menu();
+</script>
+</body>
+</html>
