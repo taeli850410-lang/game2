@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>2048</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;background:#0a0a1a;color:#fff;font-family:'Courier New',monospace;overflow:hidden;user-select:none;}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;}
+  #top{width:400px;display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;}
+  #top h2{font-size:38px;letter-spacing:2px;color:#fe5;text-shadow:0 0 10px #f80;}
+  .scorebox{background:#1a1a3a;border:2px solid #44a;padding:6px 16px;text-align:center;border-radius:6px;}
+  .scorebox .l{font-size:11px;color:#9af;letter-spacing:2px;}
+  .scorebox .v{font-size:22px;color:#fff;}
+  #board{position:relative;width:400px;height:400px;background:#15152e;border-radius:8px;padding:10px;box-shadow:0 0 26px rgba(120,120,255,.25);}
+  .cell{position:absolute;width:88px;height:88px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:bold;transition:all .08s ease;}
+  .bg{background:#23234a;}
+  a.back{position:fixed;top:14px;left:14px;color:#9af;text-decoration:none;font-size:14px;border:1px solid #46a;padding:6px 12px;border-radius:4px;}
+  a.back:hover{background:#1a2a4a;}
+  #ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;border-radius:8px;background:rgba(10,10,30,.85);}
+  .panel{pointer-events:auto;}
+  h1{font-size:40px;letter-spacing:4px;}
+  .btn{display:block;width:220px;margin:16px auto 0;padding:12px;font-family:inherit;font-size:18px;letter-spacing:2px;color:#fff;background:#15153a;border:2px solid #46c;cursor:pointer;border-radius:6px;}
+  .btn:hover{background:#25255a;transform:scale(1.05);}
+  .hint{margin-top:18px;font-size:13px;color:#789;line-height:1.7;}
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← 메뉴</a>
+<div id="wrap">
+  <div id="top">
+    <h2>2048</h2>
+    <div style="display:flex;gap:10px;">
+      <div class="scorebox"><div class="l">SCORE</div><div class="v" id="score">0</div></div>
+      <div class="scorebox"><div class="l">BEST</div><div class="v" id="best">0</div></div>
+    </div>
+  </div>
+  <div id="board"><div id="ov" style="display:none;"><div class="panel" id="panel"></div></div></div>
+</div>
+<script>
+const N=4,GAP=10,SZ=88;
+const board=document.getElementById('board');
+const ov=document.getElementById('ov'),panel=document.getElementById('panel');
+const elScore=document.getElementById('score'),elBest=document.getElementById('best');
+let grid,score,best=0,won=false,dead=false;
+const COL={2:'#3a3a6a',4:'#3a4a7a',8:'#f59563',16:'#f67c5f',32:'#f65e3b',64:'#e8503a',
+  128:'#edcf72',256:'#edcc61',512:'#edc850',1024:'#edc53f',2048:'#edc22e',4096:'#3c3a32'};
+const FG={2:'#bcd',4:'#cde'};
+
+function pos(r,c){return {x:GAP+c*(SZ+GAP), y:GAP+r*(SZ+GAP)};}
+function init(){
+  grid=Array.from({length:N},()=>Array(N).fill(0));
+  score=0;won=false;dead=false;
+  addTile();addTile();render();
+}
+function addTile(){
+  const empty=[];
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!grid[r][c])empty.push([r,c]);
+  if(!empty.length)return;
+  const [r,c]=empty[(Math.random()*empty.length)|0];
+  grid[r][c]=Math.random()<0.9?2:4;
+}
+function render(){
+  // 배경 셀 + 타일 다시 그림
+  board.querySelectorAll('.cell').forEach(e=>e.remove());
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const bg=document.createElement('div');
+    bg.className='cell bg';const p=pos(r,c);
+    bg.style.left=p.x+'px';bg.style.top=p.y+'px';
+    board.appendChild(bg);
+  }
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(grid[r][c]){
+      const t=document.createElement('div');
+      t.className='cell';const p=pos(r,c);const v=grid[r][c];
+      t.style.left=p.x+'px';t.style.top=p.y+'px';
+      t.style.background=COL[v]||'#3c3a32';
+      t.style.color=FG[v]||'#fff';
+      t.style.fontSize=(v>=1024?26:v>=128?30:34)+'px';
+      t.textContent=v;
+      board.appendChild(t);
+    }
+  }
+  elScore.textContent=score;
+  if(score>best){best=score;}elBest.textContent=best;
+}
+function slide(row){
+  let arr=row.filter(v=>v);
+  for(let i=0;i<arr.length-1;i++){
+    if(arr[i]===arr[i+1]){arr[i]*=2;score+=arr[i];if(arr[i]===2048)won=true;arr.splice(i+1,1);}
+  }
+  while(arr.length<N)arr.push(0);
+  return arr;
+}
+function move(dir){
+  if(dead)return;
+  const before=JSON.stringify(grid);
+  // dir: 0=left,1=right,2=up,3=down
+  if(dir===0){for(let r=0;r<N;r++)grid[r]=slide(grid[r]);}
+  if(dir===1){for(let r=0;r<N;r++)grid[r]=slide(grid[r].slice().reverse()).reverse();}
+  if(dir===2){for(let c=0;c<N;c++){let col=slide([grid[0][c],grid[1][c],grid[2][c],grid[3][c]]);for(let r=0;r<N;r++)grid[r][c]=col[r];}}
+  if(dir===3){for(let c=0;c<N;c++){let col=slide([grid[0][c],grid[1][c],grid[2][c],grid[3][c]].reverse()).reverse();for(let r=0;r<N;r++)grid[r][c]=col[r];}}
+  if(JSON.stringify(grid)!==before){
+    addTile();render();beep(330,0.04);
+    if(won){won=false;overlay('🎉 2048 달성!','#fe5','계속 진행할 수 있어요');}
+    else if(isDead()){dead=true;overlay('GAME OVER','#f66','더 이상 움직일 수 없어요');}
+  }
+}
+function isDead(){
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(!grid[r][c])return false;
+    if(c<N-1&&grid[r][c]===grid[r][c+1])return false;
+    if(r<N-1&&grid[r][c]===grid[r+1][c])return false;
+  }return true;
+}
+function overlay(title,color,sub){
+  ov.style.display='flex';
+  panel.innerHTML=`<h1 style="color:${color};text-shadow:0 0 14px ${color};">${title}</h1>
+    <div class="hint">${sub}</div>
+    <button class="btn" onclick="ov.style.display='none';${title.includes('2048')?'':'init();'}">${title.includes('2048')?'계속하기':'다시 시작'}</button>`;
+}
+let actx;function beep(f,d,t='sine',v=0.05){try{if(!actx)actx=new(window.AudioContext||webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();o.type=t;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(actx.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+d);o.stop(actx.currentTime+d);}catch(e){}}
+addEventListener('keydown',e=>{
+  const m={ArrowLeft:0,ArrowRight:1,ArrowUp:2,ArrowDown:3};
+  if(e.code in m){e.preventDefault();move(m[e.code]);}
+});
+init();
+</script>
+</body>
+</html>
